@@ -1,5 +1,11 @@
 # Function to interactively delete files and directories
-#
+
+# name = "fzf_delete"
+# version = "1.0.0"
+# description = "Interactive delete function for Fish shell using fzf and gum."
+# author = "Your Name <pookdeveloper@email.com>"
+# license = "MIT"
+
 # Usage: fzf_delete [options]
 #   - No parameters: shows all (except hidden)
 #   - 'f': only files
@@ -168,9 +174,4 @@ function fzf_delete --description "Interactively delete files and directories"
     end
 end
 
-name = "fzf_delete"
-version = "1.0.0"
-description = "Interactive delete function for Fish shell using fzf and gum."
-author = "Your Name <pookdeveloper@email.com>"
-license = "MIT"
 
