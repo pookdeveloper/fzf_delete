@@ -1,40 +1,40 @@
 # Function to interactively delete files and directories
 
-# name = "_fzf_delete"
+# name = "fzf_delete"
 # version = "1.0.0"
 # description = "Interactive delete function for Fish shell using fzf and gum."
 # author = "Your Name <pookdeveloper@email.com>"
 # license = "MIT"
 
-# Usage: _fzf_delete [options]
+# Usage: fzf_delete [options]
 #   - No parameters: shows all (except hidden)
 #   - 'f': only files
 #   - 'd': only directories
 #   - 'h': include hidden
 #
 # Examples:
-#   _fzf_delete           # Shows files and directories (excluding hidden)
-#   _fzf_delete d h       # Shows only directories (including hidden)
-#   _fzf_delete f h       # Shows only files (including hidden)
-#   _fzf_delete a h       # Shows files and directories (including hidden)
+#   fzf_delete           # Shows files and directories (excluding hidden)
+#   fzf_delete d h       # Shows only directories (including hidden)
+#   fzf_delete f h       # Shows only files (including hidden)
+#   fzf_delete a h       # Shows files and directories (including hidden)
 #
 # This function shows a numbered list of items in the current directory
 # according to the specified criteria, allows selecting multiple items interactively
 # and deletes them after confirmation.
-function _fzf_delete --description "Interactively delete files and directories"
+function fzf_delete --description "Interactively delete files and directories"
     # Show help if requested
     if contains -- "-h" $argv; or contains -- "--help" $argv
-        echo "Usage: _fzf_delete [options]"
+        echo "Usage: fzf_delete [options]"
         echo "  - No parameters: shows all (except hidden)"
         echo "  - 'f': only files"
         echo "  - 'd': only directories"
         echo "  - 'h': include hidden"
         echo ""
         echo "Examples:"
-        echo "  _fzf_delete           # Shows files and directories (excluding hidden)"
-        echo "  _fzf_delete d h       # Shows only directories (including hidden)"
-        echo "  _fzf_delete f h       # Shows only files (including hidden)"
-        echo "  _fzf_delete a h       # Shows files and directories (including hidden)"
+        echo "  fzf_delete           # Shows files and directories (excluding hidden)"
+        echo "  fzf_delete d h       # Shows only directories (including hidden)"
+        echo "  fzf_delete f h       # Shows only files (including hidden)"
+        echo "  fzf_delete a h       # Shows files and directories (including hidden)"
         return 0
     end
 
