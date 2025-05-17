@@ -39,10 +39,11 @@ function fzf_delete --description "Interactively delete files and directories"
     end
 
     # Set default values and process parameters
-    set type "a"          # Default: show all (files and directories)
-    set show_hidden false # Default: do not show hidden
-    
-    # Process first parameter (type)
+    set type "a"
+    set show_hidden false
+    set do_dup false
+
+    # Primer argumento: tipo
     if test (count $argv) -ge 1
         switch $argv[1]
             case "f" "F"
@@ -51,25 +52,36 @@ function fzf_delete --description "Interactively delete files and directories"
                 set type "d"
             case "a" "A"
                 set type "a"
+            case "dup"
+                set do_dup true
+            case "-h" "--help"
+                # ya gestionado arriba
             case "*"
-                if test $argv[1] != "h" -a $argv[1] != "H"
-                    echo "Invalid option: '$argv[1]}'. Use 'f' for files, 'd' for directories, or 'h' to include hidden."
-                    return 1
-                end
+                echo "Opción inválida: '$argv[1]'. Usa 'f' para archivos, 'd' para directorios, 'h' para ocultos, o 'dup' para duplicados."
+                return 1
         end
     end
-    
-    # Process second parameter (show hidden)
+
+    # Segundo argumento: show_hidden o dup
     if test (count $argv) -ge 2
-        if test $argv[2] = "h" -o $argv[2] = "H"
-            set show_hidden true
+        switch $argv[2]
+            case "h" "H"
+                set show_hidden true
+            case "dup"
+                set do_dup true
+            case "*"
+                echo "Opción inválida: '$argv[2]'. Usa 'h' para ocultos o 'dup' para duplicados."
+                return 1
         end
     end
-    
-    # If the first parameter is 'h', set to show hidden
-    if test (count $argv) -ge 1
-        if test $argv[1] = "h" -o $argv[1] = "H"
-            set show_hidden true
+
+    # Si hay un tercer argumento, solo puede ser dup
+    if test (count $argv) -ge 3
+        if test $argv[3] = "dup"
+            set do_dup true
+        else
+            echo "Opción inválida: '$argv[3]'. Solo se permite 'dup' como tercer argumento."
+            return 1
         end
     end
     
@@ -174,7 +186,7 @@ function fzf_delete --description "Interactively delete files and directories"
     end
 
     # Add option for duplicate removal
-    if contains -- "dup" $argv
+    if test $do_dup = true
         # Check for required dependencies
         set missing_deps
         if not type -q fzf
