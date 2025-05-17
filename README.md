@@ -10,6 +10,7 @@ An interactive delete function for Fish shell using [fzf](https://github.com/jun
 - Modern confirmation prompts using `gum`.
 - Supports filtering by files, directories, and hidden items.
 - Prevents accidental deletion with clear warnings and confirmation.
+- **New:** Detects and removes duplicate files and folders interactively.
 
 ---
 
@@ -52,6 +53,7 @@ delete                # Show files and directories (excluding hidden)
 delete d h            # Show only directories (including hidden)
 delete f h            # Show only files (including hidden)
 delete a h            # Show files and directories (including hidden)
+delete dup            # Show and remove duplicate files and folders
 ```
 
 ### Options
@@ -61,6 +63,7 @@ delete a h            # Show files and directories (including hidden)
 - `d`: only directories
 - `a`: all (files and directories)
 - `h`: include hidden files/directories
+- `dup`: find and remove duplicate files and folders
 
 ### Examples
 
@@ -69,7 +72,18 @@ delete           # Shows files and directories (excluding hidden)
 delete d h       # Shows only directories (including hidden)
 delete f h       # Shows only files (including hidden)
 delete a h       # Shows files and directories (including hidden)
+delete dup       # Shows duplicate files and folders for removal
 ```
+
+---
+
+## Duplicate Removal
+
+When you run `delete dup`, the function scans the current directory (and optionally subdirectories) for duplicate files and folders. Duplicates are detected based on file content (using checksums) or folder structure. You can interactively select which duplicates to remove using `fzf`, and confirm deletion with `gum`.
+
+- Only non-original duplicates are shown for removal.
+- Confirmation is required before deletion.
+- Both files and folders can be deduplicated.
 
 ---
 

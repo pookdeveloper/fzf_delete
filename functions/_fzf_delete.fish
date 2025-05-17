@@ -172,6 +172,81 @@ function fzf_delete --description "Interactively delete files and directories"
     else
         echo "Operation cancelled. No $item_type were deleted."
     end
+
+    # Add option for duplicate removal
+    if contains -- "dup" $argv
+        # Check for required dependencies
+        set missing_deps
+        if not type -q fzf
+            set -a missing_deps fzf
+        end
+        if not type -q gum
+            set -a missing_deps gum
+        end
+        if not type -q md5
+            set -a missing_deps md5
+        end
+        if not type -q md5sum
+            set -a missing_deps md5sum
+        end
+        if test (count $missing_deps) -gt 0
+            echo "Error: The following dependencies are required but not installed: (string join ', ' $missing_deps)"
+            echo "Please install them and try again."
+            return 1
+        end
+
+        # Find duplicate files (same name and size)
+        set file_dups (find . -type f -not -path '*/\.*' -printf '%f|%s|%p\n' | sort | uniq -d -f 1 | awk -F'|' '{print $3}')
+        # Find duplicate folders (same name, size, and content hash)
+        set dir_dups
+        for dir in (find . -type d -not -path '*/\.*')
+            set dname (basename $dir)
+            set dsize (du -sb $dir | awk '{print $1}')
+            set dhash (find $dir -type f -exec md5sum {} + | sort | md5sum | awk '{print $1}')
+            set dirinfo "$dname|$dsize|$dhash|$dir"
+            set -a dir_dups $dirinfo
+        end
+        set dir_dups (printf "%s\n" $dir_dups | sort | uniq -d -f 1 | awk -F'|' '{print $4}')
+
+        set all_dups $file_dups $dir_dups
+        if test (count $all_dups) -eq 0
+            echo "No duplicate files or directories found."
+            return 0
+        end
+
+        set selected_dups (printf "%s\n" $all_dups | fzf --multi --prompt="Select duplicates to delete: " --header="Use TAB to select, ENTER to confirm")
+        if test -z "$selected_dups"
+            echo "No duplicates selected. Operation cancelled."
+            return 0
+        end
+        echo ""
+        echo "You have selected the following duplicates to delete:"
+        for item in $selected_dups
+            echo "  • $item"
+        end
+        echo ""
+        if gum confirm "WARNING: This will permanently delete these duplicates and all their contents! Continue?"
+            echo "Deleting selected duplicates..."
+            for item in $selected_dups
+                echo "Deleting: $item"
+                if test -d "$item"
+                    rm -rf "$item"
+                else
+                    rm -f "$item"
+                end
+                if test $status -eq 0
+                    echo "  ✓ Successfully deleted: $item"
+                else
+                    echo "  ✗ Error deleting: $item"
+                end
+            end
+            echo ""
+            echo "Operation completed."
+        else
+            echo "Operation cancelled. No duplicates were deleted."
+        end
+        return 0
+    end
 end
 
 
