@@ -11,12 +11,14 @@
 #   - 'f': only files
 #   - 'd': only directories
 #   - 'h': include hidden
+#   - 'dup': find and delete duplicates
 #
 # Examples:
 #   fzf_delete           # Shows files and directories (excluding hidden)
 #   fzf_delete d h       # Shows only directories (including hidden)
 #   fzf_delete f h       # Shows only files (including hidden)
 #   fzf_delete a h       # Shows files and directories (including hidden)
+#   fzf_delete dup       # Shows duplicate files and directories for deletion
 #
 # This function shows a numbered list of items in the current directory
 # according to the specified criteria, allows selecting multiple items interactively
@@ -29,12 +31,188 @@ function fzf_delete --description "Interactively delete files and directories"
         echo "  - 'f': only files"
         echo "  - 'd': only directories"
         echo "  - 'h': include hidden"
+        echo "  - 'dup': find and delete duplicates"
         echo ""
         echo "Examples:"
         echo "  fzf_delete           # Shows files and directories (excluding hidden)"
         echo "  fzf_delete d h       # Shows only directories (including hidden)"
         echo "  fzf_delete f h       # Shows only files (including hidden)"
         echo "  fzf_delete a h       # Shows files and directories (including hidden)"
+        echo "  fzf_delete dup       # Shows duplicate files and directories for deletion"
+        return 0
+    end
+
+    # Si el primer argumento es dup, ejecuta SOLO la lógica de duplicados y termina
+    if test (count $argv) -ge 1; and test "$argv[1]" = "dup"
+        # Check for required dependencies
+        set missing_deps
+        if not type -q fzf
+            set -a missing_deps fzf
+        end
+        if not type -q gum
+            set -a missing_deps gum
+        end
+
+        # Detecta sistema operativo
+        set os (uname)
+        if test $os = "Darwin"
+            if not type -q md5
+                set -a missing_deps md5
+            end
+        else
+            if not type -q md5sum
+                set -a missing_deps md5sum
+            end
+        end
+        if test (count $missing_deps) -gt 0
+            echo "Error: The following dependencies are required but not installed: (string join ', ' $missing_deps)"
+            echo "Please install them and try again."
+            return 1
+        end
+
+        echo "Searching for duplicate files and directories..."
+
+        # ==== ARCHIVOS: Duplicados por nombre base, muestra solo el más reciente ====
+        set file_bases
+        set file_mtimes
+        set file_paths
+        set file_counts
+
+        set all_files
+        if test $os = "Darwin"
+            set all_files (find . -type f -not -path '*/\.*' -exec stat -f "%N|%m" {} \;)
+        else
+            set all_files (find . -type f -not -path '*/\.*' -printf '%p|%T@\n')
+        end
+
+        for file in $all_files
+            if test $os = "Darwin"
+                set path (string split "|" $file)[1]
+                set mtime (string split "|" $file)[2]
+                set fname (basename $path)
+            else
+                set path (string split "|" $file)[1]
+                set mtime (string split "|" $file)[2]
+                set fname (basename $path)
+            end
+            set base (string replace -r ' \([0-9]+\)' '' $fname)
+
+            # Buscar si ya existe este base
+            set idx -1
+            if test (count $file_bases) -gt 0
+                for i in (seq (count $file_bases))
+                    if test "$file_bases[$i]" = "$base"
+                        set idx $i
+                        break
+                    end
+                end
+            end
+
+            if test $idx -eq -1
+                set -a file_bases $base
+                set -a file_mtimes $mtime
+                set -a file_paths $path
+                set -a file_counts 1
+            else
+                # Sumar al contador
+                set file_counts[$idx] (math $file_counts[$idx] + 1)
+                # Si este es más reciente, reemplazar
+                if test $mtime -gt $file_mtimes[$idx]
+                    set file_mtimes[$idx] $mtime
+                    set file_paths[$idx] $path
+                end
+            end
+        end
+
+        set file_dups
+        if test (count $file_bases) -gt 0
+            for i in (seq (count $file_bases))
+                if test $file_counts[$i] -gt 1
+                    set -a file_dups $file_paths[$i]
+                end
+            end
+        end
+
+        # ==== DIRECTORIOS: Duplicados por nombre y tamaño ====
+        set dir_keys
+        set dir_paths
+        set dir_counts
+
+        set all_dirs (find . -type d -not -path '*/\.*')
+        for dir in $all_dirs
+            set dname (basename $dir)
+            if test $os = "Darwin"
+                set dsize (du -sk $dir | awk '{print $1}')
+            else
+                set dsize (du -sb $dir | awk '{print $1}')
+            end
+            set key "$dname|$dsize"
+
+            set idx -1
+            if test (count $dir_keys) -gt 0
+                for i in (seq (count $dir_keys))
+                    if test "$dir_keys[$i]" = "$key"
+                        set idx $i
+                        break
+                    end
+                end
+            end
+
+            if test $idx -eq -1
+                set -a dir_keys $key
+                set -a dir_paths $dir
+                set -a dir_counts 1
+            else
+                set dir_counts[$idx] (math $dir_counts[$idx] + 1)
+            end
+        end
+
+        set dir_dups
+        if test (count $dir_keys) -gt 0
+            for i in (seq (count $dir_keys))
+                if test $dir_counts[$i] -gt 1
+                    set -a dir_dups $dir_paths[$i]
+                end
+            end
+        end
+
+        set all_dups $file_dups $dir_dups
+        if test (count $all_dups) -eq 0
+            echo "No duplicate files or directories found."
+            return 0
+        end
+
+        set selected_dups (printf "%s\n" $all_dups | fzf --multi --prompt="Select duplicates to delete: " --header="Use TAB to select, ENTER to confirm")
+        if test -z "$selected_dups"
+            echo "No duplicates selected. Operation cancelled."
+            return 0
+        end
+        echo ""
+        echo "You have selected the following duplicates to delete:"
+        for item in $selected_dups
+            echo "  • $item"
+        end
+        echo ""
+        if gum confirm "WARNING: This will permanently delete these duplicates and all their contents! Continue?"
+            echo "Deleting selected duplicates..."
+            for item in $selected_dups
+                echo "Deleting: $item"
+                if test -d "$item"
+                    rm -rf "$item"
+                else
+                    rm -f "$item"
+                end
+                if test $status -eq 0
+                    echo "  ✓ Successfully deleted: $item"
+                else
+                    echo "  ✗ Error deleting: $item"
+                end
+            end
+            echo ""
+            echo "Operation completed."
+        else
+            echo "Operation cancelled. No duplicates were deleted."
+        end
         return 0
     end
 
@@ -84,7 +262,7 @@ function fzf_delete --description "Interactively delete files and directories"
             return 1
         end
     end
-    
+
     # Build the ls command with appropriate options
     set ls_cmd "/bin/ls -l"
     
@@ -183,81 +361,6 @@ function fzf_delete --description "Interactively delete files and directories"
         echo "Operation completed."
     else
         echo "Operation cancelled. No $item_type were deleted."
-    end
-
-    # Add option for duplicate removal
-    if test $do_dup = true
-        # Check for required dependencies
-        set missing_deps
-        if not type -q fzf
-            set -a missing_deps fzf
-        end
-        if not type -q gum
-            set -a missing_deps gum
-        end
-        if not type -q md5
-            set -a missing_deps md5
-        end
-        if not type -q md5sum
-            set -a missing_deps md5sum
-        end
-        if test (count $missing_deps) -gt 0
-            echo "Error: The following dependencies are required but not installed: (string join ', ' $missing_deps)"
-            echo "Please install them and try again."
-            return 1
-        end
-
-        # Find duplicate files (same name and size)
-        set file_dups (find . -type f -not -path '*/\.*' -printf '%f|%s|%p\n' | sort | uniq -d -f 1 | awk -F'|' '{print $3}')
-        # Find duplicate folders (same name, size, and content hash)
-        set dir_dups
-        for dir in (find . -type d -not -path '*/\.*')
-            set dname (basename $dir)
-            set dsize (du -sb $dir | awk '{print $1}')
-            set dhash (find $dir -type f -exec md5sum {} + | sort | md5sum | awk '{print $1}')
-            set dirinfo "$dname|$dsize|$dhash|$dir"
-            set -a dir_dups $dirinfo
-        end
-        set dir_dups (printf "%s\n" $dir_dups | sort | uniq -d -f 1 | awk -F'|' '{print $4}')
-
-        set all_dups $file_dups $dir_dups
-        if test (count $all_dups) -eq 0
-            echo "No duplicate files or directories found."
-            return 0
-        end
-
-        set selected_dups (printf "%s\n" $all_dups | fzf --multi --prompt="Select duplicates to delete: " --header="Use TAB to select, ENTER to confirm")
-        if test -z "$selected_dups"
-            echo "No duplicates selected. Operation cancelled."
-            return 0
-        end
-        echo ""
-        echo "You have selected the following duplicates to delete:"
-        for item in $selected_dups
-            echo "  • $item"
-        end
-        echo ""
-        if gum confirm "WARNING: This will permanently delete these duplicates and all their contents! Continue?"
-            echo "Deleting selected duplicates..."
-            for item in $selected_dups
-                echo "Deleting: $item"
-                if test -d "$item"
-                    rm -rf "$item"
-                else
-                    rm -f "$item"
-                end
-                if test $status -eq 0
-                    echo "  ✓ Successfully deleted: $item"
-                else
-                    echo "  ✗ Error deleting: $item"
-                end
-            end
-            echo ""
-            echo "Operation completed."
-        else
-            echo "Operation cancelled. No duplicates were deleted."
-        end
-        return 0
     end
 end
 
