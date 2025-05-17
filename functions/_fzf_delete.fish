@@ -72,7 +72,7 @@ function fzf_delete --description "Interactively delete files and directories"
 
         echo "Searching for duplicate files and directories..."
 
-        # ==== ARCHIVOS: Duplicados por nombre base, muestra solo el más reciente ====
+        # ==== ARCHIVOS: Duplicados por nombre base, muestra solo el más reciente (o el de nombre más largo si hay empate) ====
         set file_bases
         set file_mtimes
         set file_paths
@@ -120,6 +120,13 @@ function fzf_delete --description "Interactively delete files and directories"
                 if test $mtime -gt $file_mtimes[$idx]
                     set file_mtimes[$idx] $mtime
                     set file_paths[$idx] $path
+                else if test $mtime -eq $file_mtimes[$idx]
+                    # Si la fecha es igual, elige el de nombre más largo
+                    set current_len (string length -- $file_paths[$idx])
+                    set new_len (string length -- $path)
+                    if test $new_len -gt $current_len
+                        set file_paths[$idx] $path
+                    end
                 end
             end
         end
